@@ -7,15 +7,44 @@ import tensorflow as tf
 from six.moves import range
 from mnist import load_mnist
 
+FLAGS = tf.app.flags.FLAGS
 
-def mnist_batch(eigens, labels, batch_size):
+tf.app.flags.DEFINE_string(
+    'mnist-root-path', None, '')
+
+tf.app.flags.DEFINE_integer(
+    'batch-size', 128, '')
+
+
+def load_datasets():
     """
+    load mnist
     """
-    epoch, step = 0, 0
+    path_root = FLAGS.mnist_root_path
+
+    path_train_eigens = os.path.join(path_root, 'train-images-idx3-ubyte.gz')
+    path_train_labels = os.path.join(path_root, 'train-labels-idx1-ubyte.gz')
+    path_issue_eigens = os.path.join(path_root, 't10k-images-idx3-ubyte.gz')
+    path_issue_labels = os.path.join(path_root, 't10k-labels-idx1-ubyte.gz')
+
+    return load_mnist(
+        path_train_eigens, path_train_labels,
+        path_issue_eigens, path_issue_labels)
+
+
+def mnist_batches(eigens, labels, batch_size):
+    """
+    batch data generator
+    """
+    epoch, step = -1, -1
 
     indices = np.arange(eigens.shape[0])
 
     while True:
+        epoch, step = epoch + 1, 0
+
+        np.random.shuffle(indices)
+
         for i in range(0, indices.size, batch_size):
             if i + batch_size > indices.size:
                 break
@@ -26,10 +55,6 @@ def mnist_batch(eigens, labels, batch_size):
             yield epoch, step, eigens_batch, labels_batch
 
             step += 1
-
-        np.random.shuffle(indices)
-
-        epoch += 1
 
 
 def margin_loss(labels, logits):
@@ -248,48 +273,16 @@ def build_network():
     }
 
 
-def train(model, dataset):
+def test(model, issue_batches):
     """
-    """
-    with tf.Session() as session:
-        session.run(tf.global_variables_initializer())
-
-        batches = mnist_batch(
-            dataset['train_eigens'], dataset['train_labels'], 128)
-
-        for epoch, step, eigens, labels in batches:
-            feeds = {
-                model['eigens']: eigens,
-                model['labels']: labels,
-            }
-
-            fetch = {
-                'loss': model['loss'],
-                'trainer': model['trainer'],
-            }
-
-            fetched = session.run(fetch, feed_dict=feeds)
-
-            if step % 100 == 0:
-                print 'loss[{}]: {}'.format(step, fetched['loss'])
-
-            if step % 1000 == 0:
-                test(model, dataset)
-                # break
-
-
-def test(model, dataset):
-    """
+    return accuracy on test set
     """
     session = tf.get_default_session()
-
-    batches = mnist_batch(
-        dataset['issue_eigens'], dataset['issue_labels'], 128)
 
     num_correct = 0
     num_predict = 0
 
-    for epoch, step, eigens, labels in batches:
+    for epoch, step, eigens, labels in issue_batches:
         if epoch > 0:
             break
 
@@ -303,22 +296,59 @@ def test(model, dataset):
         num_correct += \
             np.sum(np.argmax(labels, axis=1) == np.argmax(guess, axis=1))
 
-    print "accuracy: {}".format(float(num_correct) / float(num_predict))
+    return float(num_correct) / float(num_predict)
 
 
-if __name__ == '__main__':
+def train():
     """
     """
-    path_root = '/home/ironhead/datasets/mnist'
-    path_train_eigens = os.path.join(path_root, 'train-images-idx3-ubyte.gz')
-    path_train_labels = os.path.join(path_root, 'train-labels-idx1-ubyte.gz')
-    path_issue_eigens = os.path.join(path_root, 't10k-images-idx3-ubyte.gz')
-    path_issue_labels = os.path.join(path_root, 't10k-labels-idx1-ubyte.gz')
+    datasets = load_datasets()
 
-    dataset = load_mnist(
-        path_train_eigens, path_train_labels,
-        path_issue_eigens, path_issue_labels)
+    train_batches = mnist_batches(
+        datasets['train_eigens'], datasets['train_labels'], FLAGS.batch_size)
 
     model = build_network()
 
-    train(model, dataset)
+    with tf.Session() as session:
+        session.run(tf.global_variables_initializer())
+
+        for epoch, step, eigens, labels in train_batches:
+            feeds = {
+                model['eigens']: eigens,
+                model['labels']: labels,
+            }
+
+            fetch = {
+                'loss': model['loss'],
+                'trainer': model['trainer'],
+            }
+
+            fetched = session.run(fetch, feed_dict=feeds)
+
+            if step == 0:
+                issue_batches = mnist_batches(
+                    datasets['issue_eigens'],
+                    datasets['issue_labels'],
+                    FLAGS.batch_size)
+
+                accuracy = test(model, issue_batches)
+
+                print 'acc [{:>4}][{:>5}]: {:>10,.8f}'.format(
+                    epoch, step, accuracy)
+
+            if step % 100 == 0:
+                print 'loss[{:>4}][{:>5}]: {:>10,.8f}'.format(
+                    epoch, step, fetched['loss'])
+
+
+def main(_):
+    """
+    """
+    FLAGS.batch_size = 128
+    FLAGS.mnist_root_path = '/home/ironhead/datasets/mnist'
+
+    train()
+
+
+if __name__ == '__main__':
+    tf.app.run()
