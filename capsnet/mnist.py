@@ -68,6 +68,7 @@ def load_mnist(
     train_eigens = train_eigens.astype(np.float32) / 127.5 - 1.0
     issue_eigens = issue_eigens.astype(np.float32) / 127.5 - 1.0
 
+    # pad to 32 x 32, random crop back to 28 x 28 later
     train_eigens = np.pad(
         train_eigens, [[0, 0], [2, 2], [2, 2], [0, 0]], mode='constant')
     issue_eigens = np.pad(
