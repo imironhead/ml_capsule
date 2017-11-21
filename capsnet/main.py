@@ -16,6 +16,8 @@ tf.app.flags.DEFINE_string(
 
 tf.app.flags.DEFINE_integer(
     'batch-size', 128, '')
+tf.app.flags.DEFINE_integer(
+    'routing-frequency', 3, '')
 
 
 def load_datasets():
@@ -131,6 +133,7 @@ def main(_):
     """
     """
     FLAGS.batch_size = 128
+    FLAGS.routing_frequency = 3
     FLAGS.mnist_root_path = '/home/ironhead/datasets/mnist'
 
     train()

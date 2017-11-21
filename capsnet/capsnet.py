@@ -2,6 +2,8 @@
 """
 import tensorflow as tf
 
+FLAGS = tf.app.flags.FLAGS
+
 
 def margin_loss(labels, logits):
     """
@@ -140,7 +142,7 @@ def build_capsnet():
 
     # NOTE: arXiv:1710.09829v1, #2: how the vector inputs and outputs of a
     #       capsule are computed
-    for r in reversed(range(3)):
+    for r in reversed(range(FLAGS.routing_frequency)):
         # NOTE: routing softmax
         #       probabilities of each primary capsule's contribution to 10
         #       digit capsules
