@@ -24,9 +24,33 @@ def margin_loss(labels, logits):
     # NOTE: arXiv:1710.09829v1, #3: margin loss for digit existence
     #       the total loss is simply the sum of the losses of all digit
     #       capsules.
-    loss = tf.reduce_sum(loss, axis=1)
+    return tf.reduce_sum(loss, axis=1)
 
-    return tf.reduce_mean(loss)
+
+def reconstruction_loss(labels, digit_capsules, images):
+    """
+    """
+    digit_capsules = tf.reshape(digit_capsules, (-1, 10, 16))
+
+    images = tf.reshape(images, (-1, 784))
+
+    labels = tf.reshape(labels, (-1, 10, 1))
+
+    flow = tf.reshape(digit_capsules * labels, (-1, 160))
+
+    initializer = tf.truncated_normal_initializer(stddev=0.02)
+
+    for index, num_outputs in enumerate([512, 1024, 784]):
+        flow = tf.contrib.layers.fully_connected(
+            inputs=flow,
+            num_outputs=num_outputs,
+            activation_fn=tf.nn.sigmoid if index == 2 else tf.nn.relu,
+            weights_initializer=initializer,
+            scope='fc_{}'.format(num_outputs))
+
+    sqr_diff = (images - flow) ** 2
+
+    return 0.0005 * tf.reduce_sum(sqr_diff, axis=1)
 
 
 def squash(tensor):
@@ -54,14 +78,11 @@ def build_capsnet():
     labels = tf.placeholder(shape=[None, 10], dtype=tf.float32)
 
     # NOTE: arXiv:1710.09829v1, #5: Capsules on MNIST
-    #       training is performed on 28x28 MNIST images that have been shiftrf
+    #       training is performed on 28x28 MNIST images that have been shifted
     #       by up to 2 pixels in each direction with zero padding.
-    # NOTE: MNIST is padded to 32x32 when been loaded. random cropping is then
-    #       performed here.
-    images = tf.placeholder(shape=[None, 32, 32, 1], dtype=tf.float32)
+    images = tf.placeholder(shape=[None, 28, 28, 1], dtype=tf.float32)
 
-    cropped_images = \
-        tf.random_crop(images, size=[128, 28, 28, 1])
+    batch_size = tf.shape(images)[0]
 
     # NOTE: arXiv:1710.09829v1, #4: CapsNet architecture
     #       this layer converts pixel intensities to the activities of local
@@ -69,7 +90,7 @@ def build_capsnet():
     #       capsules.
     # NOTE: shape -> (-1, 20, 20, 256)
     conv1 = tf.layers.conv2d(
-        cropped_images,
+        images,
         filters=256,
         kernel_size=9,
         strides=1,
@@ -135,14 +156,14 @@ def build_capsnet():
     uhat = tf.transpose(uhat, [0, 2, 1, 3])
 
     # NOTE: each primary capsule (36 * 32) contributes to 10 digit capsules.
-    b = tf.zeros(shape=(128, 10, 1, 36 * 32))
+    b = tf.zeros(shape=(batch_size, 10, 1, 36 * 32))
 
     # NOTE: gradients from uhat_stop stop here (no backpropagation)
     uhat_stop = tf.stop_gradient(uhat, name='uhat_stop')
 
     # NOTE: arXiv:1710.09829v1, #2: how the vector inputs and outputs of a
     #       capsule are computed
-    for r in reversed(range(FLAGS.routing_frequency)):
+    for r in reversed(range(FLAGS.routing_frequency + 1)):
         # NOTE: routing softmax
         #       probabilities of each primary capsule's contribution to 10
         #       digit capsules
@@ -166,22 +187,32 @@ def build_capsnet():
             #       capsule i to higher level capsules
             b += tf.matmul(v, uhat_stop, transpose_b=True)
 
+    digit_capsules = v
+
     # NOTE: arXiv:1710.09829v1, #3: margin loss for digit existence
     #       we are using the length of the instantiation vector to represent
     #       the probability that a capsule's entity exists, so we would like
     #       the top-level capsule for digit class k to have a long
     #       instantiation vector if and only if that digit is present in the
     #       image.
-    guess = tf.norm(v, ord=2, axis=3)
+    guess = tf.norm(digit_capsules, ord=2, axis=3)
 
     guess = tf.reshape(guess, [-1, 10])
 
     loss = margin_loss(labels, guess)
 
+    # NOTE:
+    if FLAGS.reconstruction_loss:
+        loss += reconstruction_loss(labels, digit_capsules, images)
+
+    loss = tf.reduce_mean(loss)
+
     # NOTE: arXiv:1710.09829v1, #4capsnet architecture
     #       we use the adam optimizer with its tensorflow default parameters
+    learning_rate = tf.placeholder(shape=[], dtype=tf.float32)
+
     trainer = tf.train \
-        .AdamOptimizer() \
+        .AdamOptimizer(learning_rate=learning_rate) \
         .minimize(loss)
 
     return {
@@ -190,4 +221,5 @@ def build_capsnet():
         'loss': loss,
         'guess': guess,
         'trainer': trainer,
+        'learning_rate': learning_rate,
     }

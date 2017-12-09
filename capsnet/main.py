@@ -14,6 +14,9 @@ FLAGS = tf.app.flags.FLAGS
 tf.app.flags.DEFINE_string(
     'mnist-root-path', None, '')
 
+tf.app.flags.DEFINE_boolean(
+    'reconstruction-loss', False, '')
+
 tf.app.flags.DEFINE_integer(
     'batch-size', 128, '')
 tf.app.flags.DEFINE_integer(
@@ -36,29 +39,39 @@ def load_datasets():
         path_issue_eigens, path_issue_labels)
 
 
-def mnist_batches(eigens, labels, batch_size):
+def mnist_batches(eigens, labels, batch_size, epochs=1000000):
     """
     batch data generator
     """
-    epoch, step = -1, -1
+    step = 0
 
     indices = np.arange(eigens.shape[0])
 
-    while True:
-        epoch, step = epoch + 1, 0
-
+    for epoch in range(epochs):
         np.random.shuffle(indices)
 
         for i in range(0, indices.size, batch_size):
-            if i + batch_size > indices.size:
-                break
-
             eigens_batch = eigens[indices[i:i+batch_size]]
             labels_batch = labels[indices[i:i+batch_size]]
 
             yield epoch, step, eigens_batch, labels_batch
 
             step += 1
+
+
+def random_shift(eigens, num_pixels):
+    """
+    """
+    base_x = np.random.randint(4)
+    base_y = np.random.randint(4)
+
+    eigens = np.pad(
+        eigens,
+        ((0, 0), (2, 2), (2, 2), (0, 0)),
+        mode='constant',
+        constant_values=0)
+
+    return eigens[:, base_x:base_x + 28, base_y:base_y + 28, :]
 
 
 def test(model, issue_batches):
@@ -71,9 +84,6 @@ def test(model, issue_batches):
     num_predict = 0
 
     for epoch, step, eigens, labels in issue_batches:
-        if epoch > 0:
-            break
-
         feeds = {
             model['eigens']: eigens,
         }
@@ -97,13 +107,16 @@ def train():
 
     model = build_capsnet()
 
+    tested_epoch = 0
+
     with tf.Session() as session:
         session.run(tf.global_variables_initializer())
 
         for epoch, step, eigens, labels in train_batches:
             feeds = {
-                model['eigens']: eigens,
+                model['eigens']: random_shift(eigens, 2),
                 model['labels']: labels,
+                model['learning_rate']: 0.001 * (0.96 ** epoch),
             }
 
             fetch = {
@@ -113,15 +126,18 @@ def train():
 
             fetched = session.run(fetch, feed_dict=feeds)
 
-            if step == 0:
+            if tested_epoch != epoch:
+                tested_epoch = epoch
+
                 issue_batches = mnist_batches(
                     datasets['issue_eigens'],
                     datasets['issue_labels'],
-                    FLAGS.batch_size)
+                    FLAGS.batch_size,
+                    1)
 
                 accuracy = test(model, issue_batches)
 
-                print 'acc [{:>4}][{:>5}]: {:>10,.8f}'.format(
+                print 'acc === [{:>4}][{:>5}]: {:>10,.8f}'.format(
                     epoch, step, accuracy)
 
             if step % 100 == 0:
@@ -132,10 +148,6 @@ def train():
 def main(_):
     """
     """
-    FLAGS.batch_size = 128
-    FLAGS.routing_frequency = 3
-    FLAGS.mnist_root_path = '/home/ironhead/datasets/mnist'
-
     train()
 
 

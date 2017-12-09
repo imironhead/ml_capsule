@@ -65,14 +65,8 @@ def load_mnist(
     issue_labels = extract_labels(path_issue_labels)
 
     # to -1.0 ~ +1.0
-    train_eigens = train_eigens.astype(np.float32) / 127.5 - 1.0
-    issue_eigens = issue_eigens.astype(np.float32) / 127.5 - 1.0
-
-    # pad to 32 x 32, random crop back to 28 x 28 later
-    train_eigens = np.pad(
-        train_eigens, [[0, 0], [2, 2], [2, 2], [0, 0]], mode='constant')
-    issue_eigens = np.pad(
-        issue_eigens, [[0, 0], [2, 2], [2, 2], [0, 0]], mode='constant')
+    train_eigens = train_eigens.astype(np.float32) / 255.0
+    issue_eigens = issue_eigens.astype(np.float32) / 255.0
 
     # one hot labels
     train_labels_onehot = np.zeros((train_labels.size, 10))
