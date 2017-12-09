@@ -11,16 +11,15 @@ from capsnet import build_capsnet
 
 FLAGS = tf.app.flags.FLAGS
 
-tf.app.flags.DEFINE_string(
-    'mnist-root-path', None, '')
+tf.app.flags.DEFINE_string('mnist-root-path', None, '')
+tf.app.flags.DEFINE_string('ckpt-path', None, '')
+tf.app.flags.DEFINE_string('ckpt-dir', None, '')
+tf.app.flags.DEFINE_string('logs-dir', None, '')
 
-tf.app.flags.DEFINE_boolean(
-    'reconstruction-loss', False, '')
+tf.app.flags.DEFINE_boolean('reconstruction-loss', False, '')
 
-tf.app.flags.DEFINE_integer(
-    'batch-size', 128, '')
-tf.app.flags.DEFINE_integer(
-    'routing-frequency', 3, '')
+tf.app.flags.DEFINE_integer('batch-size', 128, '')
+tf.app.flags.DEFINE_integer('routing-frequency', 3, '')
 
 
 def load_datasets():
@@ -100,6 +99,11 @@ def test(model, issue_batches):
 def train():
     """
     """
+    reporter = tf.summary.FileWriter(FLAGS.logs_dir)
+
+    if FLAGS.ckpt_dir is not None and tf.gfile.Exists(FLAGS.ckpt_dir):
+        ckpt_path = os.path.join(FLAGS.ckpt_dir, 'model.ckpt')
+
     datasets = load_datasets()
 
     train_batches = mnist_batches(
@@ -112,20 +116,39 @@ def train():
     with tf.Session() as session:
         session.run(tf.global_variables_initializer())
 
+        if FLAGS.ckpt_path is not None and tf.gfile.Exists(FLAGS.ckpt_path):
+            tf.train.Saver().restore(session, FLAGS.ckpt_path)
+
         for epoch, step, eigens, labels in train_batches:
+            learning_rate = 0.001 * (0.96 ** epoch)
+
             feeds = {
                 model['eigens']: random_shift(eigens, 2),
                 model['labels']: labels,
-                model['learning_rate']: 0.001 * (0.96 ** epoch),
+                model['learning_rate']: learning_rate,
             }
 
             fetch = {
                 'loss': model['loss'],
+                'step': model['training_step'],
                 'trainer': model['trainer'],
             }
 
             fetched = session.run(fetch, feed_dict=feeds)
 
+            # NOTE: general d_summaries
+            summaries = [
+                tf.Summary.Value(tag='loss', simple_value=fetched['loss']),
+                tf.Summary.Value(tag='lr', simple_value=learning_rate)]
+
+            summaries = tf.Summary(value=summaries)
+
+            reporter.add_summary(summaries, fetched['step'])
+
+            if step % 100 == 0:
+                print 'loss[{:>8}]: {}'.format(step, fetched['loss'])
+
+            # NOTE: new epoch
             if tested_epoch != epoch:
                 tested_epoch = epoch
 
@@ -137,12 +160,23 @@ def train():
 
                 accuracy = test(model, issue_batches)
 
-                print 'acc === [{:>4}][{:>5}]: {:>10,.8f}'.format(
-                    epoch, step, accuracy)
+                print 'accuracy[{:>8}]: {}'.format(fetched['step'], accuracy)
 
-            if step % 100 == 0:
-                print 'loss[{:>4}][{:>5}]: {:>10,.8f}'.format(
-                    epoch, step, fetched['loss'])
+                # TODO: summary
+                summary_accuracy = \
+                    [tf.Summary.Value(tag='accuracy', simple_value=accuracy)]
+
+                summary = tf.Summary(value=summary_accuracy)
+
+                reporter.add_summary(summary, fetched['step'])
+
+                # NOTE: save model
+                if epoch % 10 == 0 and ckpt_path is not None:
+                    tf.train.Saver().save(
+                        session, ckpt_path, global_step=model['training_step'])
+
+                if epoch > 200:
+                    break
 
 
 def main(_):

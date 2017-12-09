@@ -211,9 +211,16 @@ def build_capsnet():
     #       we use the adam optimizer with its tensorflow default parameters
     learning_rate = tf.placeholder(shape=[], dtype=tf.float32)
 
+    training_step = tf.get_variable(
+        'training_step',
+        [],
+        trainable=False,
+        initializer=tf.constant_initializer(0, dtype=tf.int64),
+        dtype=tf.int64)
+
     trainer = tf.train \
         .AdamOptimizer(learning_rate=learning_rate) \
-        .minimize(loss)
+        .minimize(loss, global_step=training_step)
 
     return {
         'eigens': images,
@@ -222,4 +229,5 @@ def build_capsnet():
         'guess': guess,
         'trainer': trainer,
         'learning_rate': learning_rate,
+        'training_step': training_step,
     }
