@@ -64,7 +64,7 @@ def load_mnist(
     issue_eigens = extract_images(path_issue_eigens)
     issue_labels = extract_labels(path_issue_labels)
 
-    # to -1.0 ~ +1.0
+    # to 0.0 ~ +1.0
     train_eigens = train_eigens.astype(np.float32) / 255.0
     issue_eigens = issue_eigens.astype(np.float32) / 255.0
 

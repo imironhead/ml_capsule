@@ -160,7 +160,7 @@ def train():
 
                 accuracy = test(model, issue_batches)
 
-                print 'accuracy[{:>8}]: {}'.format(fetched['step'], accuracy)
+                print 'accuracy[{:>8}]: {}'.format(epoch, accuracy)
 
                 # TODO: summary
                 summary_accuracy = \

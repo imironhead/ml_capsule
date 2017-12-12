@@ -48,7 +48,7 @@ def reconstruction_loss(labels, digit_capsules, images):
             weights_initializer=initializer,
             scope='fc_{}'.format(num_outputs))
 
-    sqr_diff = (images - flow) ** 2
+    sqr_diff = tf.square(images - flow)
 
     return 0.0005 * tf.reduce_sum(sqr_diff, axis=1)
 
@@ -75,12 +75,14 @@ def build_capsnet():
     """
     initializer = tf.truncated_normal_initializer(stddev=0.02)
 
-    labels = tf.placeholder(shape=[None, 10], dtype=tf.float32)
+    labels = tf.placeholder(
+        shape=[None, 10], dtype=tf.float32, name='labels')
 
     # NOTE: arXiv:1710.09829v1, #5: Capsules on MNIST
     #       training is performed on 28x28 MNIST images that have been shifted
     #       by up to 2 pixels in each direction with zero padding.
-    images = tf.placeholder(shape=[None, 28, 28, 1], dtype=tf.float32)
+    images = tf.placeholder(
+        shape=[None, 28, 28, 1], dtype=tf.float32, name='images')
 
     batch_size = tf.shape(images)[0]
 
@@ -197,7 +199,7 @@ def build_capsnet():
     #       image.
     guess = tf.norm(digit_capsules, ord=2, axis=3)
 
-    guess = tf.reshape(guess, [-1, 10])
+    guess = tf.reshape(guess, [-1, 10], name='predictions')
 
     loss = margin_loss(labels, guess)
 
