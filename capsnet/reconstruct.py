@@ -99,8 +99,6 @@ def main(_):
 
     datasets = load_datasets()
 
-    FLAGS.sample_number = ((FLAGS.sample_number + 15) / 16) * 16
-
     with tf.Session() as session:
         saver = tf.train.import_meta_graph(FLAGS.meta_path)
 
@@ -110,8 +108,9 @@ def main(_):
 
         images_tensor = graph.get_tensor_by_name('images:0')
         labels_tensor = graph.get_tensor_by_name('labels:0')
-        prediction_tensor = graph.get_tensor_by_name('predictions:0')
-        reconstruction_tensor = graph.get_tensor_by_name('fc_784/Sigmoid:0')
+        prediction_tensor = graph.get_tensor_by_name('predictions/Squeeze:0')
+        reconstruction_tensor = \
+            graph.get_tensor_by_name('reconstruction/sigmoid:0')
 
         reconstructions = np.zeros_like(datasets['issue_eigens'])
         predictions = np.zeros_like(datasets['issue_labels'])

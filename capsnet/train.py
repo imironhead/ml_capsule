@@ -96,7 +96,7 @@ def test(model, issue_batches):
     return float(num_correct) / float(num_predict)
 
 
-def train():
+def main(_):
     """
     """
     reporter = tf.summary.FileWriter(FLAGS.logs_dir)
@@ -120,7 +120,7 @@ def train():
             tf.train.Saver().restore(session, FLAGS.ckpt_path)
 
         for epoch, step, eigens, labels in train_batches:
-            learning_rate = 0.001 * (0.96 ** epoch)
+            learning_rate = 0.001 * (0.95 ** epoch)
 
             feeds = {
                 model['eigens']: random_shift(eigens, 2),
@@ -177,12 +177,6 @@ def train():
 
                 if epoch > 200:
                     break
-
-
-def main(_):
-    """
-    """
-    train()
 
 
 if __name__ == '__main__':

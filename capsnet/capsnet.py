@@ -27,30 +27,27 @@ def margin_loss(labels, logits):
     return tf.reduce_sum(loss, axis=1)
 
 
-def reconstruction_loss(labels, digit_capsules, images):
+def reconstruction(labels, digit_capsules):
     """
     """
-    digit_capsules = tf.reshape(digit_capsules, (-1, 10, 16))
+    with tf.variable_scope('reconstruction', reuse=tf.AUTO_REUSE):
+        digit_capsules = tf.reshape(digit_capsules, (-1, 10, 16))
 
-    images = tf.reshape(images, (-1, 784))
+        labels = tf.reshape(labels, (-1, 10, 1))
 
-    labels = tf.reshape(labels, (-1, 10, 1))
+        flow = tf.reshape(digit_capsules * labels, (-1, 160))
 
-    flow = tf.reshape(digit_capsules * labels, (-1, 160))
+        initializer = tf.truncated_normal_initializer(stddev=0.02)
 
-    initializer = tf.truncated_normal_initializer(stddev=0.02)
+        for index, num_outputs in enumerate([512, 1024, 784]):
+            flow = tf.contrib.layers.fully_connected(
+                inputs=flow,
+                num_outputs=num_outputs,
+                activation_fn=None if index == 2 else tf.nn.relu,
+                weights_initializer=initializer,
+                scope='fc_{}'.format(num_outputs))
 
-    for index, num_outputs in enumerate([512, 1024, 784]):
-        flow = tf.contrib.layers.fully_connected(
-            inputs=flow,
-            num_outputs=num_outputs,
-            activation_fn=tf.nn.sigmoid if index == 2 else tf.nn.relu,
-            weights_initializer=initializer,
-            scope='fc_{}'.format(num_outputs))
-
-    sqr_diff = tf.square(images - flow)
-
-    return 0.0005 * tf.reduce_sum(sqr_diff, axis=1)
+        return tf.nn.sigmoid(flow, name='sigmoid')
 
 
 def squash(tensor):
@@ -63,11 +60,6 @@ def squash(tensor):
     result = tensor * (lensqr / (lensqr + 1.0) / length)
 
     return result
-
-
-def routing(uhat):
-    """
-    """
 
 
 def build_capsnet():
@@ -189,7 +181,7 @@ def build_capsnet():
             #       capsule i to higher level capsules
             b += tf.matmul(v, uhat_stop, transpose_b=True)
 
-    digit_capsules = v
+    digit_capsules = tf.reshape(v, [-1, 10, 16], name='digit_capsules')
 
     # NOTE: arXiv:1710.09829v1, #3: margin loss for digit existence
     #       we are using the length of the instantiation vector to represent
@@ -197,15 +189,29 @@ def build_capsnet():
     #       the top-level capsule for digit class k to have a long
     #       instantiation vector if and only if that digit is present in the
     #       image.
-    guess = tf.norm(digit_capsules, ord=2, axis=3)
-
-    guess = tf.reshape(guess, [-1, 10], name='predictions')
+    guess = tf.norm(digit_capsules, ord=2, axis=2, name='predictions')
 
     loss = margin_loss(labels, guess)
 
     # NOTE:
     if FLAGS.reconstruction_loss:
-        loss += reconstruction_loss(labels, digit_capsules, images)
+        new_images = reconstruction(labels, digit_capsules)
+
+        old_images = tf.reshape(images, (-1, 784))
+
+        sqr_diff = tf.square(old_images - new_images)
+
+        loss += 0.0005 * tf.reduce_sum(sqr_diff, axis=1)
+
+        # NOTE: reconstruct from inserted digit capsules directly
+        inserted_digit_capsules = tf.placeholder(
+            shape=[None, 10, 16],
+            dtype=tf.float32,
+            name='inserted_digit_capsules')
+
+        tmp_images = reconstruction(labels, inserted_digit_capsules)
+
+        tmp_images = tf.reshape(tmp_images, (-1, 784), name='reconstructions')
 
     loss = tf.reduce_mean(loss)
 
