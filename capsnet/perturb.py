@@ -72,7 +72,7 @@ def main(_):
         inserted_digit_capsules_tensor = \
             graph.get_tensor_by_name('inserted_digit_capsules:0')
         reconstruction_tensor = \
-            graph.get_tensor_by_name('reconstructions:0')
+            graph.get_tensor_by_name('reconstructions_from_latent:0')
 
         # NOTE: fetch digit capsules of all digits
         feeds = {

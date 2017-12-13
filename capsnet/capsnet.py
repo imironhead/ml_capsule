@@ -47,7 +47,7 @@ def reconstruction(labels, digit_capsules):
                 weights_initializer=initializer,
                 scope='fc_{}'.format(num_outputs))
 
-        return tf.nn.sigmoid(flow, name='sigmoid')
+        return tf.nn.sigmoid(flow)
 
 
 def squash(tensor):
@@ -189,7 +189,9 @@ def build_capsnet():
     #       the top-level capsule for digit class k to have a long
     #       instantiation vector if and only if that digit is present in the
     #       image.
-    guess = tf.norm(digit_capsules, ord=2, axis=2, name='predictions')
+    guess = tf.norm(digit_capsules, ord=2, axis=2)
+
+    guess = tf.identity(guess, name='predictions')
 
     loss = margin_loss(labels, guess)
 
@@ -203,6 +205,8 @@ def build_capsnet():
 
         loss += 0.0005 * tf.reduce_sum(sqr_diff, axis=1)
 
+        tf.identity(new_images, name='reconstructions_from_origin')
+
         # NOTE: reconstruct from inserted digit capsules directly
         inserted_digit_capsules = tf.placeholder(
             shape=[None, 10, 16],
@@ -211,7 +215,7 @@ def build_capsnet():
 
         tmp_images = reconstruction(labels, inserted_digit_capsules)
 
-        tmp_images = tf.reshape(tmp_images, (-1, 784), name='reconstructions')
+        tf.identity(tmp_images, name='reconstructions_from_latent')
 
     loss = tf.reduce_mean(loss)
 

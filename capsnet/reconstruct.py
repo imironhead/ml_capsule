@@ -108,9 +108,9 @@ def main(_):
 
         images_tensor = graph.get_tensor_by_name('images:0')
         labels_tensor = graph.get_tensor_by_name('labels:0')
-        prediction_tensor = graph.get_tensor_by_name('predictions/Squeeze:0')
+        prediction_tensor = graph.get_tensor_by_name('predictions:0')
         reconstruction_tensor = \
-            graph.get_tensor_by_name('reconstruction/sigmoid:0')
+            graph.get_tensor_by_name('reconstructions_from_origin:0')
 
         reconstructions = np.zeros_like(datasets['issue_eigens'])
         predictions = np.zeros_like(datasets['issue_labels'])
