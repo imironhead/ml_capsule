@@ -91,12 +91,6 @@ def save(
 def main(_):
     """
     """
-    FLAGS.mnist_root_path = '/home/ironhead/datasets/mnist'
-    FLAGS.ckpt_path = './ckpt/9600/model.ckpt-18761'
-    FLAGS.meta_path = './ckpt/9600/model.ckpt-18761.meta'
-    FLAGS.result_path = './qooo.png'
-    FLAGS.sample_number = 256
-
     datasets = load_datasets()
 
     with tf.Session() as session:
