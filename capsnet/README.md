@@ -1,6 +1,6 @@
 # Replicate "Dynamic Routing Between Capsules"
 
----
+[arXiv: Dynamic Routing Between Capsules](https://arxiv.org/abs/1710.09829)
 
 ## Requirements
 
@@ -8,8 +8,6 @@
 - pillow
 - scipy
 - tensorflow
-
----
 
 ## Usage
 
@@ -62,8 +60,6 @@ python perturb.py \
 --result-path=./zooo.png
 ```
 
----
-
 ## MNIST
 
 The best testing accuracy is 0.9974 (3 routing with reconstruction loss) with exponentially decayed learning rate.
@@ -105,8 +101,6 @@ Lower loss is possible (with reconstruction) by tuning learning rate. However, t
 * the middle column of each digits are reconstructed images of testing set (10000 images).
 * each digit has 16 rows for 16D digit capsules.
 * each digit has 10 columns (-0.25 ~ 0.0 ~ +0.25, as the descriptions on the paper)
-
----
 
 ## Fashion-MNIST
 
