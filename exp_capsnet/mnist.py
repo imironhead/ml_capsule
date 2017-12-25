@@ -2,6 +2,7 @@
 """
 import gzip
 import numpy as np
+import scipy.io
 
 
 def read32(bytestream):
@@ -55,27 +56,46 @@ def extract_labels(path_file):
 
 
 def load_mnist(
-        path_train_eigens, path_train_labels,
-        path_issue_eigens, path_issue_labels):
+        path_mnist_train_eigens,
+        path_mnist_train_labels,
+        path_affnist_issue):
     """
     """
-    train_eigens = extract_images(path_train_eigens)
-    train_labels = extract_labels(path_train_labels)
-    issue_eigens = extract_images(path_issue_eigens)
-    issue_labels = extract_labels(path_issue_labels)
+    train_eigens = extract_images(path_mnist_train_eigens)
+    train_labels = extract_labels(path_mnist_train_labels)
 
     # to 0.0 ~ +1.0
     train_eigens = train_eigens.astype(np.float32) / 255.0
-    issue_eigens = issue_eigens.astype(np.float32) / 255.0
 
     # one hot labels
     train_labels_onehot = np.zeros((train_labels.size, 10))
 
     train_labels_onehot[np.arange(train_labels.size), train_labels] = 1.0
 
-    issue_labels_onehot = np.zeros((issue_labels.size, 10))
+    # affNIST
+    aff_nist_issue = scipy.io.matlab.loadmat(path_affnist_issue)
 
-    issue_labels_onehot[np.arange(issue_labels.size), issue_labels] = 1.0
+    # NOTE: already one-hot labels in affnist
+    issue_labels_onehot = np.transpose(aff_nist_issue['affNISTdata'][0, 0][4])
+
+    # NOTE: affnist = {
+    #           'affNISTdata': [[
+    #               transforms_type_0,
+    #               transforms_type_1,
+    #               images,
+    #               indices_0,
+    #               onehot_labels,
+    #               labels,
+    #               transforms_type_2,
+    #               indices_1,
+    #           ]]
+    #       }
+    issue_eigens = np.transpose(aff_nist_issue['affNISTdata'][0, 0][2])
+
+    issue_eigens = np.reshape(issue_eigens, (-1, 40, 40, 1))
+
+    # to 0.0 ~ +1.0
+    issue_eigens = issue_eigens.astype(np.float32) / 255.0
 
     return {
         'train_eigens': train_eigens,

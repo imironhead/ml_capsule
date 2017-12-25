@@ -40,22 +40,37 @@ def capsulize(
 
         if embed_positions:
             # TODO: maintain stddev / mean
-            positions = np.ones((w, h, 2 * out_capsule_layer_num))
+            # positions = np.ones((2 * out_capsule_layer_num, w, h))
+            #
+            # positions[1::2, :, :] = np.arange(h).astype(np.float32)
+            #
+            # positions = np.transpose(positions, [0, 2, 1])
+            #
+            # positions[0::2, :, :] = np.arange(w).astype(np.float32)
+            #
+            # positions = np.transpose(positions, [2, 1, 0])
 
-            positions[:, :, 1::2] = np.arange(h)
+            positions_w = tf.cast(tf.range(w), dtype=np.float32)
+            positions_h = tf.cast(tf.range(h), dtype=np.float32)
 
-            positions = np.transpose(positions, [1, 0, 2])
+            positions_w = tf.reshape(positions_w, [1, 1, w, 1])
+            positions_h = tf.reshape(positions_h, [1, h, 1, 1])
 
-            positions[:, :, 0::2] = np.arange(w)
+            positions_w = tf.tile(positions_w, [1, h, 1, 1])
+            positions_h = tf.tile(positions_h, [1, 1, w, 1])
+
+            positions = tf.concat([positions_w, positions_h], axis=3)
+
+            positions = tf.tile(positions, [1, 1, 1, out_capsule_layer_num])
 
             # TODO: stddev -> 0.02, mean -> 0.0
 
-            positions = np.reshape(
+            positions = tf.reshape(
                 positions,
-                [1, h * w * out_capsule_layer_num, 1, out_capsule_dim])
+                [1, h * w * out_capsule_layer_num, 1, 2])
 
             # to tensor
-            positions = tf.constant(positions)
+            # positions = tf.constant(positions)
 
             # tile
             positions = tf.tile(positions, [batch_size, 1, 1, 1])
@@ -159,8 +174,7 @@ def fully_connected_reconstruction(capsules, labels, layers):
     """
     initializer = tf.truncated_normal_initializer(stddev=0.02)
 
-    batch_size, capsule_num, capsule_dim = capsules.shape
-    batch_size = tf.shape(capsules)[0]
+    _, capsule_num, capsule_dim = capsules.shape
 
     with tf.variable_scope('reconstruction', reuse=tf.AUTO_REUSE):
         labels = tf.reshape(labels, (-1, capsule_num, 1))
@@ -214,7 +228,7 @@ def build_capsnet():
         shape=[None, 10], dtype=tf.float32, name='labels')
 
     images = tf.placeholder(
-        shape=[None, 28, 28, 1], dtype=tf.float32, name='images')
+        shape=[None, 40, 40, 1], dtype=tf.float32, name='images')
 
     tensor = tf.layers.conv2d(
         images,
@@ -228,7 +242,8 @@ def build_capsnet():
         kernel_initializer=initializer,
         name='conv1')
 
-    capsules = capsulize(tensor, 9, 2, 32, 8, False, 'capsules_1')
+    capsules = capsulize(
+        tensor, 9, 2, 32, 6, FLAGS.embed_positions, 'capsules_1')
 
     capsules = route(capsules, 3, 10, 16, 'capsules_2')
 
@@ -238,9 +253,9 @@ def build_capsnet():
 
     # NOTE
     new_images = fully_connected_reconstruction(
-        capsules, labels, [512, 1024, 784])
+        capsules, labels, [512, 1024, 1600])
 
-    old_images = tf.reshape(images, (-1, 28 * 28))
+    old_images = tf.reshape(images, (-1, 40 * 40))
 
     sqr_diff = tf.square(old_images - new_images)
 

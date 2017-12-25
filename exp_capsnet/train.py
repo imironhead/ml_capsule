@@ -9,33 +9,35 @@ from mnist import load_mnist
 
 from capsnet import build_capsnet
 
+TFDEF = tf.app.flags
 FLAGS = tf.app.flags.FLAGS
 
-tf.app.flags.DEFINE_string('mnist-root-path', None, '')
-tf.app.flags.DEFINE_string('ckpt-path', None, '')
-tf.app.flags.DEFINE_string('ckpt-dir', None, '')
-tf.app.flags.DEFINE_string('logs-dir', None, '')
 
-tf.app.flags.DEFINE_boolean('reconstruction-loss', False, '')
+TFDEF.DEFINE_string('mnist-root-path', None, '')
+TFDEF.DEFINE_string('affnist-test-path', None, '')
+TFDEF.DEFINE_string('ckpt-path', None, '')
+TFDEF.DEFINE_string('ckpt-dir', None, '')
+TFDEF.DEFINE_string('logs-dir', None, '')
 
-tf.app.flags.DEFINE_integer('batch-size', 128, '')
-tf.app.flags.DEFINE_integer('routing-frequency', 3, '')
+TFDEF.DEFINE_boolean('reconstruction-loss', False, '')
+TFDEF.DEFINE_boolean('embed-positions', False, '')
+
+TFDEF.DEFINE_integer('batch-size', 128, '')
+TFDEF.DEFINE_integer('routing-frequency', 3, '')
 
 
 def load_datasets():
     """
     load mnist
     """
-    path_root = FLAGS.mnist_root_path
+    path_mnist = FLAGS.mnist_root_path
+    path_affnist_issue = FLAGS.affnist_test_path
 
-    path_train_eigens = os.path.join(path_root, 'train-images-idx3-ubyte.gz')
-    path_train_labels = os.path.join(path_root, 'train-labels-idx1-ubyte.gz')
-    path_issue_eigens = os.path.join(path_root, 't10k-images-idx3-ubyte.gz')
-    path_issue_labels = os.path.join(path_root, 't10k-labels-idx1-ubyte.gz')
+    path_train_eigens = os.path.join(path_mnist, 'train-images-idx3-ubyte.gz')
+    path_train_labels = os.path.join(path_mnist, 'train-labels-idx1-ubyte.gz')
 
     return load_mnist(
-        path_train_eigens, path_train_labels,
-        path_issue_eigens, path_issue_labels)
+        path_train_eigens, path_train_labels, path_affnist_issue)
 
 
 def mnist_batches(eigens, labels, batch_size, epochs=1000000):
@@ -50,6 +52,10 @@ def mnist_batches(eigens, labels, batch_size, epochs=1000000):
         np.random.shuffle(indices)
 
         for i in range(0, indices.size, batch_size):
+            # NOTE: treate as training set
+            if i + batch_size > indices.size and epochs > 1:
+                break
+
             eigens_batch = eigens[indices[i:i+batch_size]]
             labels_batch = labels[indices[i:i+batch_size]]
 
@@ -58,19 +64,23 @@ def mnist_batches(eigens, labels, batch_size, epochs=1000000):
             step += 1
 
 
-def random_shift(eigens, num_pixels):
+def random_shift(eigens):
     """
     """
-    base_x = np.random.randint(4)
-    base_y = np.random.randint(4)
+    if eigens.shape[1] != 28:
+        raise 'only for mnist (28 x 28)'
 
-    eigens = np.pad(
-        eigens,
-        ((0, 0), (2, 2), (2, 2), (0, 0)),
-        mode='constant',
-        constant_values=0)
+    batch_size = eigens.shape[0]
 
-    return eigens[:, base_x:base_x + 28, base_y:base_y + 28, :]
+    shifted_eigens = np.zeros((batch_size, 40, 40, 1))
+
+    for i in range(batch_size):
+        base_x = np.random.randint(12)
+        base_y = np.random.randint(12)
+
+        shifted_eigens[i, base_y:base_y+28, base_x:base_x+28] = eigens[i]
+
+    return shifted_eigens
 
 
 def test(model, issue_batches):
@@ -123,7 +133,7 @@ def main(_):
             learning_rate = 0.001 * (0.95 ** epoch)
 
             feeds = {
-                model['eigens']: random_shift(eigens, 2),
+                model['eigens']: random_shift(eigens),
                 model['labels']: labels,
                 model['learning_rate']: learning_rate,
             }
